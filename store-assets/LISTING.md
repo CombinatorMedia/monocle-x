@@ -4,7 +4,7 @@
 Monocle for X | Fullscreen Media Viewer
 
 ## Short description (132 char max)
-Browse X media fullscreen, one item at a time. Arrow keys move through every result without closing the viewer. Video plays inline.
+Open a photo on X and there is no next. Monocle gives the arrow keys back — every result fullscreen, video playing inline.
 
 ## Category
 Productivity
@@ -16,31 +16,43 @@ English (United States)
 
 ## Detailed description
 
-X's media view shows you one post at a time and then stops. There is no next.
-To see the following image you close it, find the next tile, and open that —
-over and over. Monocle gives the arrow keys back.
+Open a photo on X and you've hit a dead end. There is no next. To see the
+following image you close it, hunt for the next tile, open that one — and
+again, and again. A hundred photos is a hundred round trips.
 
-Click any media tile and it opens fullscreen at full resolution, with a
-filmstrip along the bottom. Arrow keys step through everything the timeline
-found, not just what happens to be on screen — the grid recycles tiles as you
-scroll, but the viewer keeps the whole list. Hold an arrow to move faster.
+Monocle gives the arrow keys back.
 
-Video plays inline, in the viewer, with the same keys. No handing you off to
-another view and no losing your place.
+Click any media tile and it opens fullscreen, and ← → walk the entire set.
+Hold an arrow and it accelerates. You never close the viewer until you're
+done looking.
 
-WHAT IT DOES
+IT SHOWS YOU MORE THAN THE PAGE DOES
 
-• Fullscreen viewing — every image at full resolution, scaled to fit, never cropped
-• Keyboard navigation — move through every result without closing the viewer
-• Video inline — plays in place, with play/pause and mute on the keyboard
-• Filmstrip — the active item stays centered, videos marked with their duration
-• Shortlist — star what's worth keeping, then filter the filmstrip to just those
+• The original file, not the copy. X serves the grid a downscaled image.
+  Monocle requests the original the post was uploaded with, so you're looking
+  at full resolution — often several times the pixels the page would hand you.
+
+• Photos and videos together. X makes you pick one or the other from the Media
+  dropdown. Monocle's filmstrip carries both at once, because it reads what
+  the timeline actually returned rather than what the tab is filtered to.
+
+• Past the end of the grid. X recycles tiles as you scroll, so what's on
+  screen is only ever a window onto the results. The viewer keeps the whole
+  list and walks straight through it.
+
+• Video in place. It plays inside the viewer, with Space and M on the
+  keyboard. No handoff to another view, no losing your position.
+
+WHAT ELSE IT DOES
+
+• Fullscreen viewing — scaled to fit, never cropped, never stretched
+• Filmstrip — the active item stays centred, videos marked with their duration
+• Shortlist — star what's worth keeping, then filter the filmstrip to those
 • Compare — four starred items at once in a 2×2 grid
-• Photos and videos in one filmstrip, instead of X's separate tabs
 • Dimensions and author — always visible, and the author links to the post
 • Copy and download — one key each, straight from the viewer
 • Zoom and pan — scroll to zoom, Cmd/Ctrl-scroll or Shift-scroll to pan
-• Click anywhere outside the image to close, or use Esc
+• Click anywhere outside the image to close, or press Esc
 
 KEYBOARD
 
@@ -58,10 +70,6 @@ WORKS ON
 • The Media tab of any search — search a term, then switch to Media
 • Any profile's Media tab with Photos selected
 
-And the filmstrip carries everything the timeline returned, photos and videos
-together. X makes you pick one or the other; Monocle shows you both in one
-strip.
-
 IF YOU USE GOOGLE IMAGES
 
 Monocle started there. Same viewer, same keyboard, built for Google Images
@@ -75,7 +83,8 @@ PRIVACY
 
 Monocle for X has no accounts, no analytics and no tracking. Nothing you view
 or search is recorded or transmitted anywhere. It runs entirely in your
-browser, and it does not read, post or change anything on your account.
+browser, and it does not read, post, follow, like or change anything on your
+account.
 
 Media is fetched directly from X's own media servers, and only when you ask to
 copy or download something.
@@ -145,15 +154,21 @@ Privacy policy URL: required only if data were collected. None is collected.
 
 ---
 
-## Screenshots (1280×800) — TO BUILD
-
-Per the agreed direction, shoot these against a designer furniture media
-search rather than the bass guitar searches used during development.
+## Screenshots (1280×800)
 
 1. `01-main-viewer.png` — fullscreen viewer with filmstrip
-2. `02-video.png` — video playing inline, duration badges in the filmstrip
+2. `02-video.png` — video, duration badges in the filmstrip
 3. `03-shortlist.png` — filmstrip filtered to starred items
 4. `04-grid-compare.png` — 2×2 compare of starred items
+
+Built the way Monocle's were: composed at 1440×900 in Figma (page
+"Monocle for X — Store"), which is exactly 1.6, then rendered to 1280×800 as
+a pure downscale. The background plate is a real capture of an X media grid
+sitting UNDER the scrim — exporting the viewer frame alone is what forced the
+redo last time, because the blur had nothing behind it. Imagery is from a
+"modern coffee tables and sofas" media search, pulled at full resolution from
+X's CDN. Author handles are anonymised to @example, as Monocle's were to
+example.com.
 
 ---
 
