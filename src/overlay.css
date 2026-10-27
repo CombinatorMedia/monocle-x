@@ -1,0 +1,627 @@
+/* Focus viewer — design tokens mirror the Figma variable collections
+   (Color, Scale, Effects) so this file should stay in sync with the file at
+   figma.com/design/Dh0Nx5WmZxFltzY6MhvdvX by hand until we wire up token export. */
+:host {
+  all: initial;
+}
+
+.mx-root,
+.mx-root *,
+.mx-root *::before,
+.mx-root *::after {
+  box-sizing: border-box;
+}
+
+.mx-root {
+  --bg-base: rgba(10, 10, 12, 0.75);
+  --surface-background: rgba(52, 53, 55, 0.75);
+  --surface-photo: #252529;
+  --text-primary: #f5f5f7;
+  --text-secondary: #9a9aa2;
+  --accent-highlight: #cdd5e9;
+  --accent-starred: rgba(255, 180, 84, 0.7);
+  --accent-starred-solid: #ffb454;
+
+  --glass-white-06: rgba(255, 255, 255, 0.06);
+  --glass-white-10: rgba(255, 255, 255, 0.1);
+  --glass-tile: rgba(255, 255, 255, 0.2);
+  --glass-highlight-16: rgba(170, 183, 216, 0.16);
+
+  --glow-color: rgba(255, 255, 255, 0.3);
+  --glow-radius: 15.1px;
+  --glow-spread: 3px;
+  --shadow-color: rgba(0, 0, 0, 0.46);
+  --shadow-radius: 4px;
+  --shadow-spread: 2px;
+
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  --icon-cluster-width: 36px;
+
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  font-family: -apple-system, "Inter", "Segoe UI", system-ui, sans-serif;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mx-root[hidden] {
+  display: none;
+}
+
+/* Opening: the photo grows out of the clicked thumbnail (see _playOpenFrom)
+   while everything around it fades up, so the chrome doesn't slam in at full
+   strength before the photo has arrived. */
+.mx-panel,
+.mx-filmstrip,
+.mx-icon-cluster,
+.mx-badge,
+.mx-shortlist-pill {
+  transition: opacity 260ms ease;
+}
+
+/* transition:none here matters as much as the opacity. Without it, adding the
+   class ANIMATES the chrome from 1 down to 0 and only then back up — a visible
+   fade-out before the fade-in. Snapping to 0 while opening means removing the
+   class is the only transition that ever plays. */
+.mx-root.is-opening .mx-panel,
+.mx-root.is-opening .mx-filmstrip,
+.mx-root.is-opening .mx-icon-cluster,
+.mx-root.is-opening .mx-badge,
+.mx-root.is-opening .mx-shortlist-pill {
+  opacity: 0;
+  transition: none;
+}
+
+/* The photo is the thing being animated, so it must not fade with the rest —
+   and its own crossfade transition would fight the FLIP transform. */
+.mx-root.is-opening .mx-photo.is-active {
+  opacity: 1;
+  transition: none;
+}
+
+/* The frame clips its contents, but the tile the photo flies in from is often
+   outside the frame — anything in the bottom row sits below it. Clipping
+   during the flight makes the photo appear to emerge from a sliced-off
+   rectangle instead of from the thumbnail. */
+.mx-root.is-opening .mx-image-frame {
+  overflow: visible;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mx-panel,
+  .mx-filmstrip,
+  .mx-icon-cluster,
+  .mx-badge,
+  .mx-shortlist-pill {
+    transition: none;
+  }
+}
+
+.mx-panel {
+  position: absolute;
+  inset: 0;
+  background: var(--surface-background);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow:
+    inset 0 0 var(--glow-radius) var(--glow-spread) var(--glow-color),
+    inset 0 0 var(--shadow-radius) var(--shadow-spread) var(--shadow-color);
+}
+
+/* ---------- Main image ----------
+   Fixed-px margins (not percentages) so the 26px top gap and the 26px gap
+   above the filmstrip (112px filmstrip + 26px = 138px) stay exactly equal
+   regardless of the real browser window's height — matching Figma's
+   left:64 / top:26 / bottom:26-above-filmstrip spec. The frame itself
+   carries NO fill — it's a bounding box for the photo only; any letterboxed
+   gap shows the glass panel behind it, never a placeholder.
+
+   The right margin is DERIVED (not a separate hardcoded number) from the
+   icon cluster's own 32px edge margin and width, plus another 32px gap
+   between the image and the cluster — so "32px clear on both sides of the
+   icon menu" holds automatically at any window width instead of two magic
+   numbers that could silently drift apart. */
+
+.mx-image-frame {
+  position: absolute;
+  left: 64px;
+  right: calc(var(--space-32) + var(--icon-cluster-width) + var(--space-32));
+  top: 26px;
+  bottom: 138px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mx-root.is-fullscreen .mx-image-frame {
+  inset: 0;
+  border-radius: 0;
+}
+
+/* Two photos stacked in the same box. Only one is opaque at a time; a swap
+   fades the incoming one up as the outgoing one fades down, so there is no
+   moment where the frame is empty. */
+.mx-image-frame img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  /* Centered on both axes. This was briefly `top` (= 50% 0%) to keep a
+     short photo's top edge aligned with the icon menu in narrow/tall
+     windows, but centering reads better overall. Only the vertical half
+     changed — the horizontal stays at 50%, same as it has always been. */
+  object-position: center;
+  opacity: 0;
+  transition: opacity 180ms ease;
+  cursor: pointer;
+  /* The inactive photo is still stacked on top and an opacity:0 element
+     still takes clicks, which would swallow click-to-open-source. */
+  pointer-events: none;
+}
+
+.mx-image-frame img.is-active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ---------- Corner badge (resolution + source domain) ---------- */
+
+/* No backplate — just text, floating directly on the photo. Sits in the
+   26px gap between the image frame's bottom edge (bottom: 138px) and the
+   filmstrip's top edge (bottom: 112px): bottom/height here span exactly
+   that gap, and align-items: center places the text's LINE BOX at the
+   midpoint. The line box itself lands dead center — but the visible
+   glyphs don't fill it symmetrically (more unused space below the
+   baseline than above), which reads as "text sits a little high" even
+   though the box itself is exactly centered. translateY nudges the
+   rendered text down to compensate; confirmed against a real screenshot
+   (system font rendering varies slightly by platform) that 2px wasn't
+   quite enough — bumped to 5px. */
+.mx-badge {
+  position: absolute;
+  right: var(--space-32);
+  bottom: 112px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  font-size: 11px;
+  letter-spacing: 0.2px;
+  transform: translateY(5px);
+}
+
+/* Dimensions and domain read at the same visual weight — both an actual 50%
+   opacity white, rather than one using the solid --text-primary color and
+   the other a separately-toned --text-secondary gray that happened to look
+   dimmer than intended. */
+.mx-badge .mx-dim,
+.mx-badge .mx-dot,
+.mx-badge .mx-domain {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.mx-badge .mx-domain {
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.mx-badge .mx-domain:hover {
+  text-decoration: underline;
+}
+
+.mx-root.is-fullscreen > .mx-badge,
+.mx-root.is-fullscreen .mx-zoom-pill {
+  display: none;
+}
+
+/* ---------- Icon cluster ----------
+   32px from the right, top-aligned with the image frame (both sit at 26px
+   from the top) — fixed px on both so it stays pinned as the window resizes. */
+
+.mx-icon-cluster {
+  position: absolute;
+  right: var(--space-32);
+  top: 26px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.mx-icon-btn {
+  position: relative;
+  width: var(--icon-cluster-width);
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--glass-tile);
+  backdrop-filter: blur(1.5px);
+  -webkit-backdrop-filter: blur(1.5px);
+  border: none;
+  outline: 2px solid transparent;
+  outline-offset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-primary);
+  padding: 0;
+}
+
+/* iOS-style glass specular highlight — a PARTIAL STROKE around the button's
+   edge, bright only near the top-left and bottom-right corners and fading to
+   nothing along the way between them, rather than a soft glow washed across
+   the whole face. Built as a gradient-filled ring: the gradient fills a
+   padded box, then a mask cuts out everything except that padding (the
+   stroke's thickness), so only a thin ring is left — colored by the
+   gradient, so it's a highlight only where the gradient is bright. */
+.mx-icon-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.65) 0%,
+    rgba(255, 255, 255, 0) 18%,
+    rgba(255, 255, 255, 0) 82%,
+    rgba(255, 255, 255, 0.4) 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Close sits apart from the rest of the stack, matching Figma's 24px gap
+   (8px flex gap + 16px extra) vs. the 8px gap between the other icons. */
+.mx-close {
+  margin-bottom: 16px;
+}
+
+/* Close carries no chip at all — in Figma (127:933) its fill and its GLASS
+   effect are both switched off, leaving a bare glyph, while the five buttons
+   below keep theirs. So the tile background, its blur and the specular ring
+   all come off, and the 36x36 box stays purely as the hit target. */
+.mx-close {
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.mx-close::before {
+  content: none;
+}
+
+/* The X itself is drawn larger than the other glyphs to compensate for
+   losing its chip: a 26x26 icon box against the others' 20x20. Our path
+   spans exactly half its 24-unit viewBox, matching Figma's 13px vector in a
+   26px box. Both classes in the selector on purpose — `.mx-close svg` alone
+   ties with `.mx-icon-btn svg` on specificity and loses on source order. */
+.mx-icon-btn.mx-close svg {
+  width: 26px;
+  height: 26px;
+}
+
+.mx-icon-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.mx-icon-btn:hover {
+  filter: brightness(1.15);
+}
+
+/* Active state: 2px OUTSIDE stroke, no fill tint (per Figma) */
+.mx-icon-btn.is-active {
+  outline: 2px solid var(--accent-highlight);
+  color: var(--accent-highlight);
+}
+
+/* Starred: no outline ring — the star icon itself swaps to a solid-filled
+   star (see overlay.js), so the fill color alone carries the active state. */
+.mx-icon-btn.is-starred {
+  color: var(--accent-starred-solid);
+}
+
+/* ---------- Filmstrip ---------- */
+
+.mx-filmstrip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 112px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-16);
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* Transparent, not var(--surface-background) — .mx-panel underneath
+     already paints that exact tint across the whole viewer (inset: 0), so
+     painting the same translucent color a second time here composites on
+     top of it and comes out visibly darker than the rest of the panel
+     (two stacked 0.75-alpha layers ≈ 0.94 effective alpha) — a seam right
+     at the filmstrip's edges instead of one continuous fill. Staying
+     transparent lets the panel's own tint show through untouched, so the
+     color is identical by construction rather than by coincidence.
+     No backdrop-filter of its own either, for the same reason: the panel
+     already blurs whatever's behind the whole viewer once (blur(6px)) —
+     adding a second blur(20px) pass here re-blurs that already-blurred
+     result specifically inside the filmstrip's rectangle, which reads as a
+     visibly hazier/softer band even with matching, fully-transparent
+     color. Rendered a side-by-side test of both to confirm: transparent
+     alone still left a visible seam, transparent + no blur was seamless. */
+  background: transparent;
+  scrollbar-width: none;
+}
+.mx-filmstrip::-webkit-scrollbar { display: none; }
+
+.mx-root.is-fullscreen .mx-filmstrip {
+  display: none;
+}
+
+.mx-thumb {
+  position: relative;
+  flex: 0 0 80px;
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-photo);
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+  outline: 4px solid transparent;
+  outline-offset: 0;
+  opacity: 1;
+  transition: opacity 200ms ease, outline-color 120ms ease, transform 150ms ease;
+}
+
+.mx-thumb.is-loading { opacity: 0.35; }
+
+/* Outer outline (doesn't affect layout, unlike border) so growing to 130%
+   doesn't shift neighboring thumbnails. transform-origin stays centered so
+   the enlarged thumb grows equally above/below the strip's horizontal
+   center line. */
+.mx-thumb.is-active {
+  outline-color: var(--accent-highlight);
+  transform: scale(1.3);
+  z-index: 1;
+}
+
+/* Dark diagonal gradient in the corner behind the star, so it stays legible
+   against bright/busy thumbnail content instead of just floating on top. */
+.mx-thumb.is-pinned::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(to bottom left, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0) 55%);
+  pointer-events: none;
+}
+
+.mx-thumb .mx-pin {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 14px;
+  height: 14px;
+}
+
+/* ---------- Shortlist pill ----------
+   Doubles as the only discoverable entry point into shortlist view (the "S"
+   key toggles it too, but nothing on screen ever hinted that existed) — so
+   it shows as soon as anything is starred, not only once already filtered,
+   and is clickable rather than a plain status readout. */
+
+.mx-shortlist-pill {
+  position: absolute;
+  top: var(--space-8);
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  align-items: center;
+  gap: var(--space-8);
+  padding: 6px var(--space-12);
+  border-radius: var(--radius-pill);
+  background: var(--glass-highlight-16);
+  border: 1px solid var(--accent-starred-solid);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.mx-shortlist-pill.is-visible { display: flex; }
+
+.mx-shortlist-pill:hover { filter: brightness(1.15); }
+
+/* ---------- Zoom + pan hint / indicator ---------- */
+
+.mx-hint,
+.mx-toast,
+.mx-zoom-pill {
+  position: absolute;
+  bottom: 128px;
+  padding: 8px var(--space-16);
+  border-radius: var(--radius-pill);
+  background: var(--glass-white-10);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  font-size: 11px;
+  display: flex;
+  gap: var(--space-12);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+
+.mx-root.is-fullscreen .mx-hint { bottom: 24px; }
+
+.mx-hint.is-visible { opacity: 1; }
+.mx-hint .mx-dot { color: var(--text-secondary); }
+.mx-hint span.mx-secondary { color: var(--text-secondary); }
+
+.mx-zoom-pill {
+  right: var(--space-8);
+  left: auto;
+}
+
+/* Transient confirmation for copy/download, centred above the filmstrip.
+   Shares the hint/zoom-pill glass treatment so it reads as the same family. */
+.mx-toast {
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.mx-toast.is-visible { opacity: 1; }
+
+/* ---------- Minimap (shown only while zoomed) ---------- */
+
+.mx-minimap {
+  position: absolute;
+  left: var(--space-16);
+  top: var(--space-16);
+  width: 110px;
+  height: 70px;
+  border-radius: var(--radius-sm);
+  background: var(--glass-white-10);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: none;
+}
+
+.mx-minimap.is-visible { display: block; }
+
+.mx-minimap .mx-minimap-extent {
+  position: absolute;
+  inset: 8px;
+  border: 1px solid var(--text-secondary);
+  border-radius: 2px;
+}
+
+.mx-minimap .mx-minimap-crop {
+  position: absolute;
+  border: 1.5px solid var(--accent-highlight);
+  background: rgba(205, 213, 233, 0.28);
+  border-radius: 1px;
+}
+
+/* ---------- Grid compare mode ---------- */
+
+/* The right inset clears the icon cluster, derived the same way the single
+   image frame does it (32 edge + cluster width + 32 clearance). A flat 32px
+   ran the right-hand column underneath the icons, clipping those cells'
+   corner badges. */
+.mx-grid {
+  position: absolute;
+  inset: var(--space-32) calc(var(--space-32) + var(--icon-cluster-width) + var(--space-32)) 128px var(--space-32);
+  display: none;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: var(--space-24);
+}
+
+.mx-root.is-grid .mx-grid { display: grid; }
+.mx-root.is-grid > .mx-image-frame,
+.mx-root.is-grid > .mx-badge { display: none; }
+
+.mx-grid-cell {
+  position: relative;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mx-grid-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.mx-grid-cell .mx-badge {
+  right: var(--space-12);
+  bottom: var(--space-12);
+}
+
+/* The close glyph's size is set with the rest of the icon cluster, above.
+   A duplicate rule lived here pinning it to 20px — invisible while that
+   matched the generic icon size, but it silently won over the cluster's own
+   rule the moment the two disagreed. */
+
+/* ---------- Video ----------
+   The video sits in the same frame as the two photos and plays by the same
+   rules: contain-fit, never cropped, centered. It gets its own element rather
+   than sharing the crossfade pair because a <video> can't be swapped the way
+   an <img> can — reassigning src tears down the decoder — so it fades
+   independently and the photos stay untouched underneath. */
+
+.mx-image-frame video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  opacity: 0;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+  background: transparent;
+}
+
+.mx-image-frame video.is-active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* A filmstrip thumbnail that represents a video wears a play glyph, so the
+   strip tells you what you're about to land on before you get there. */
+.mx-thumb.is-video::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  transform: translate(-40%, -50%);
+  border-left: 11px solid rgba(255, 255, 255, 0.92);
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+  pointer-events: none;
+}
+
+/* Duration sits bottom-right of the thumb, the way every video grid does it. */
+.mx-thumb .mx-duration {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.66);
+  color: #fff;
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.2px;
+  pointer-events: none;
+}
