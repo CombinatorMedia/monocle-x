@@ -36,6 +36,7 @@ WHAT IT DOES
 • Filmstrip — the active item stays centered, videos marked with their duration
 • Shortlist — star what's worth keeping, then filter the filmstrip to just those
 • Compare — four starred items at once in a 2×2 grid
+• Photos and videos in one filmstrip, instead of X's separate tabs
 • Dimensions and author — always visible, and the author links to the post
 • Copy and download — one key each, straight from the viewer
 • Zoom and pan — scroll to zoom, Cmd/Ctrl-scroll or Shift-scroll to pan
@@ -54,8 +55,12 @@ Esc      step back, then close
 
 WORKS ON
 
-The Media tab of any search on X — searching a term, then switching to Media,
-gives you a grid the viewer opens from.
+• The Media tab of any search — search a term, then switch to Media
+• Any profile's Media tab with Photos selected
+
+And the filmstrip carries everything the timeline returned, photos and videos
+together. X makes you pick one or the other; Monocle shows you both in one
+strip.
 
 IF YOU USE GOOGLE IMAGES
 
@@ -161,18 +166,20 @@ review. If review pushes back, the fallback is "Monocle for X (Unofficial)".
 
 ---
 
-## Known scope limit (do not overclaim in the listing)
+## Surface notes (verified 2026-10-27 on live X)
 
-Verified 2026-10-27 on live X: the viewer opens on click **only on search media
-grids**. Profile media tabs (`/<user>/media`) are a different surface —
+**Works.** Search Media grids, and a profile's Media tab with Photos selected
+(`/<user>/media?filter=photo`). Verified on @NASA: the viewer opened with 59
+items in the filmstrip, 16 of them videos, and a 3,840x2,160 clip played
+inline at readyState 4.
 
-- the sniffer works there (16 and 20 records harvested on two accounts), so the
-  data is available;
-- but the grid tiles are not anchors carrying `/status/<id>/photo/<n>`. The only
-  `/status/` links present are the post and analytics links, and no anchor wraps
-  a thumbnail, so `tileFromEvent()` finds nothing and the click correctly falls
-  through to X.
+**Does not engage.** A profile's Media tab now defaults to **Videos**, and that
+view is not a grid at all -- it is a timeline of full post cards with no
+`/status/<id>/photo/<n>` anchors anywhere. Confirmed on two accounts. Clicks
+there fall through to X untouched, which is the correct behaviour; supporting
+it would mean treating a timeline as a gallery, which is a different product.
 
-Supporting it means resolving a clicked tile by matching its thumbnail URL back
-to a harvested record instead of by permalink. Tracked as a follow-up; until
-it ships, the listing must not claim profile, bookmark or likes grids.
+An earlier draft of this file claimed profile media was unsupported outright.
+That was wrong. It came from reaching /media by URL, landing on the Videos
+default, and generalising from it without opening the dropdown. Photos grids
+work, and always did.
