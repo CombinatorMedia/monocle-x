@@ -858,18 +858,14 @@
 
     // ---------- Copy / download ----------
 
-    // Most third-party image hosts don't send CORS headers, so a fetch()
-    // from here (bound by the page's own CORS rules) fails silently on
-    // exactly the images this feature exists for. The background service
-    // worker fetches instead — with host_permissions for the origin, its
-    // fetch bypasses CORS entirely — and hands the bytes back as a data URL.
+    // The bytes are fetched in the background service worker, which holds
+    // host_permissions for both media hosts and so is bound by neither the
+    // page's CSP nor CORS. It hands them back as a data URL. (Monocle needed
+    // this because Google Images points at arbitrary hosts; here it is simply
+    // the path that can't be broken by a CSP change on X's side.)
     _fetchViaBackground(src) {
       return new Promise((resolve) => {
         chrome.runtime.sendMessage({ type: 'mx-fetch-image', url: src }, async (response) => {
-          // needsPermission is distinct from a failure: the user simply
-          // hasn't granted access to third-party image hosts, so the caller
-          // should degrade rather than treat it as an error.
-          if (response && response.needsPermission) { resolve({ needsPermission: true }); return; }
           if (!response || !response.ok) { resolve(null); return; }
           try {
             const res = await fetch(response.dataUrl); // data: URL, not a network request
@@ -893,20 +889,17 @@
       return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
     }
 
+    // Copy takes the picture, download takes the file. On a video that means
+    // the poster frame, never the MP4: asking for the video here used to pull
+    // the whole file through the service worker, fail createImageBitmap on it,
+    // and fall back to putting a bare video.twimg.com URL on the clipboard
+    // under the toast "Image copied". Measured: 827ms wasted on a 58-second
+    // clip for a result nobody wanted.
     async copyCurrent() {
-      const src = this.current && ((this.current.video && this.current.video.src) || this.current.poster || this.current.thumb);
+      const src = this.current && (this.current.poster || this.current.thumb);
       if (!src) return;
       try {
         const result = await this._fetchViaBackground(src);
-        if (result && result.needsPermission) {
-          // Copying the image bytes needs access to whichever host serves it,
-          // which is an optional permission granted from the options page.
-          // Until then, put the URL on the clipboard — still useful, and it
-          // needs no permission at all.
-          await navigator.clipboard.writeText(src);
-          this._flash('Image URL copied · enable image copying in settings');
-          return;
-        }
         if (!result || !result.blob) throw new Error('background fetch failed');
         const pngBlob = await this._toPngBlob(result.blob);
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
@@ -939,7 +932,14 @@
 
     _onKeydown(e) {
       if (!this.root || this.root.hidden) return;
-      switch (e.key) {
+      // Case-fold the letter keys and read Shift from the modifier rather than
+      // from the character. Distinguishing s from S by character inverts the
+      // whole pair under Caps Lock — S would open the shortlist and Shift+S
+      // would star — and silently kills every other letter shortcut on
+      // layouts that report an uppercase character. Measured: with Caps Lock
+      // on, e.key for the S key is 'S'.
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      switch (key) {
         // Escape steps back out one layer at a time rather than closing
         // outright, so the shortlist always has a way back to the single
         // image view even if the pill is missed or mis-clicked.
@@ -959,13 +959,15 @@
           if (this._videoIsActive()) this._toggleVideoPlayback();
           else this.togglePin();
           break;
-        case 'm': case 'M': this._toggleMute(); break;
-        case 'f': case 'F': this.toggleFullscreen(); break;
-        case 'g': case 'G': this.toggleGrid(); break;
-        case 'c': case 'C': this.copyCurrent(); break;
-        case 'd': case 'D': this.downloadCurrent(); break;
-        case 's': this.togglePin(); break;
-        case 'S': this.toggleShortlistView(); break;
+        case 'm': this._toggleMute(); break;
+        case 'f': this.toggleFullscreen(); break;
+        case 'g': this.toggleGrid(); break;
+        case 'c': this.copyCurrent(); break;
+        case 'd': this.downloadCurrent(); break;
+        case 's':
+          if (e.shiftKey) this.toggleShortlistView();
+          else this.togglePin();
+          break;
         default: return;
       }
       e.preventDefault();

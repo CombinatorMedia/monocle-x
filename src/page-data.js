@@ -9,6 +9,23 @@
  * script cannot do. Declared in the manifest with "world": "MAIN" and
  * run_at: document_start so the patch is installed before X's first request.
  *
+ * THREE TRANSPORTS, NOT TWO
+ * Measured on x.com 2026-10-27: X delivers the FIRST page of a media timeline
+ * inside the HTML document, not over fetch. The search document carries a
+ * ~228KB inline <script> holding a streamed Relay payload
+ * (`GraphQLRequestStream.Completed`) with the response JSON escaped one level
+ * into a JS string literal — 96 media entities, permalinks and video variants
+ * all present. Only pagination (scroll) and in-app navigation go through
+ * fetch. So patching fetch alone catches everything EXCEPT the images actually
+ * on screen when the page opens: a cold load of /search?...&f=media rendered
+ * 48 tiles and harvested 0 records, and the first click fell through to X's
+ * own lightbox.
+ *
+ * That script ends with `document.currentScript.remove()`, so it is gone from
+ * the DOM before anything that waits for DOMContentLoaded can read it. It has
+ * to be caught as it is parsed — hence the MutationObserver below, which holds
+ * a reference to the detached node and reads its text after the fact.
+ *
  * ── HARDENING: why this file reads the way it does ─────────────────────────
  * X rewrites its markup constantly — class names are hashed and rotate without
  * notice. Three deliberate choices keep this from mattering:
@@ -47,6 +64,15 @@
   // first responses have already come and gone).
   const harvested = [];
   const seen = new Set();
+
+  // Counters behind __monocleXHealth. When X changes something, the first
+  // question is always "did we even see the response?" — these answer it
+  // without a debugger.
+  const stats = { installedAt: Math.round(performance.now()), fetchSeen: 0, xhrSeen: 0, bodiesScanned: 0, noMediaField: 0, parseFailed: 0, batches: 0, fromDocument: 0 };
+  const log = [];
+  const note = (where, url, len, outcome) => {
+    if (log.length < 60) log.push({ where, url: String(url || '').split('?')[0].slice(-48), len, outcome });
+  };
 
   function post(records) {
     window.postMessage({ [CHANNEL]: records }, window.location.origin);
@@ -124,12 +150,19 @@
   }
 
   // Shape-based discovery: find media entities wherever X decides to put them.
-  function harvest(text) {
-    if (!text || text.indexOf('media_url') === -1) return;
+  function harvest(text, where, url) {
+    stats.bodiesScanned++;
+    if (!text || text.indexOf('media_url') === -1) {
+      stats.noMediaField++;
+      note(where, url, text ? text.length : 0, 'no media_url');
+      return;
+    }
     let json;
     try {
       json = JSON.parse(text);
     } catch (e) {
+      stats.parseFailed++;
+      note(where, url, text.length, 'parse failed');
       return; // not JSON, or truncated — nothing to do
     }
 
@@ -153,21 +186,154 @@
       }
     }
 
+    note(where, url, text.length, `${batch.length} records`);
     if (batch.length) {
+      stats.batches++;
       for (const r of batch) harvested.push(r);
       post(batch);
     }
   }
 
-  // --- the two transports X actually uses -----------------------------------
+  // --- transport 3: the payload streamed inside the HTML document -----------
+
+  // The embedded JSON is escaped exactly one level (`\"` for a quote) because
+  // it lives inside a JS string literal. One left-to-right pass collapses that
+  // level correctly for every case that matters here: `\"` -> `"` restores the
+  // structure, `\\` -> `\` turns a doubly-escaped `\\n` back into the `\n` that
+  // JSON.parse itself understands, and `\\\"` -> `\"` keeps a literal quote
+  // inside a string literal escaped.
+  const unescapeOnce = (text) => text.replace(/\\(["\\\/])/g, '$1');
+
+  /**
+   * Extract the single JSON object enclosing `idx` from `text`.
+   *
+   * Deliberately NOT a parse of the surrounding script: that script is
+   * JavaScript, not JSON, and its exact shape (`($R=>$R[28].next(...))`) is
+   * the most churn-prone thing in this file. Instead we ignore the wrapper
+   * entirely and lift out just the media entity, which is the same object the
+   * fetch path already hands to recordFrom(). Walking back to the enclosing
+   * brace does not track string boundaries — a `{` inside tweet text could
+   * mislead it — so a bad guess simply fails JSON.parse and costs that one
+   * record. Measured on a live search document: 96 of 96 entities recovered.
+   */
+  function objectAt(text, idx) {
+    // A media entity is a couple of kilobytes at most, and this runs inside a
+    // MutationObserver callback during page load, so both scans are bounded
+    // rather than allowed to sweep a 228KB blob 96 times over.
+    const WINDOW = 8000;
+    const floor = Math.max(0, idx - WINDOW);
+    const ceiling = Math.min(text.length, idx + WINDOW);
+    let depth = 0;
+    let start = -1;
+    for (let i = idx; i >= floor; i--) {
+      const c = text[i];
+      if (c === '}') depth++;
+      else if (c === '{') {
+        if (depth === 0) { start = i; break; }
+        depth--;
+      }
+    }
+    if (start === -1) return null;
+
+    let inString = false;
+    let escaped = false;
+    let depthFwd = 0;
+    for (let i = start; i < ceiling; i++) {
+      const c = text[i];
+      if (escaped) { escaped = false; continue; }
+      if (c === '\\') { escaped = true; continue; }
+      if (c === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (c === '{') depthFwd++;
+      else if (c === '}') {
+        depthFwd--;
+        if (depthFwd === 0) return text.slice(start, i + 1);
+      }
+    }
+    return null;
+  }
+
+  function harvestScript(raw, where) {
+    if (!raw || raw.indexOf('media_url') === -1) return;
+    stats.bodiesScanned++;
+    const text = unescapeOnce(raw);
+    const batch = [];
+    let at = -1;
+    let misses = 0;
+    while ((at = text.indexOf('media_url', at + 1)) !== -1) {
+      const object = objectAt(text, at);
+      if (!object) { misses++; continue; }
+      try {
+        const rec = recordFrom(JSON.parse(object));
+        if (rec) batch.push(rec);
+      } catch (e) {
+        misses++;
+      }
+    }
+    note(where, location.pathname, raw.length, `${batch.length} records, ${misses} missed`);
+    if (batch.length) {
+      stats.batches++;
+      stats.fromDocument += batch.length;
+      for (const r of batch) harvested.push(r);
+      post(batch);
+    }
+  }
+
+  // Catch the inline payload around its own removal.
+  //
+  // Reading the node when the parser INSERTS it is too early: X streams the
+  // document, so the script element appears with only the first chunk of its
+  // text. Measured on a live search: the block is 209,317 characters holding
+  // 54 media entities, and an insertion-time read saw 65,000 of them and
+  // recovered 15 — the parser's first flush, nothing more.
+  //
+  // The reliable moment is removal. The script's last statement is
+  // `document.currentScript.remove()`, which can only run once the whole tag
+  // has been parsed and executed, so a removal record means the text is
+  // complete — and the record keeps the detached node alive for us to read.
+  // Scans are idempotent (recordFrom dedupes on media_key), so the
+  // insertion-time pass is kept as a cheap net for any small inline block
+  // that arrives whole, and DOMContentLoaded sweeps up anything that is
+  // never removed. Three chances, no shared point of failure.
+  function watchDocumentScripts() {
+    const scanned = new WeakMap();
+    const scan = (node) => {
+      if (!node || node.tagName !== 'SCRIPT' || node.src) return;
+      const text = node.textContent;
+      if (!text || scanned.get(node) === text.length) return;
+      scanned.set(node, text.length);
+      harvestScript(text, 'inline');
+    };
+    document.querySelectorAll('script:not([src])').forEach(scan);
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) scan(node);
+        for (const node of record.removedNodes) scan(node);
+      }
+    });
+    observer.observe(document.documentElement || document, { childList: true, subtree: true });
+    // X ships the timeline in the first document and never re-streams one, so
+    // once the page is parsed there is nothing left for this to catch.
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('script:not([src])').forEach(scan);
+      setTimeout(() => observer.disconnect(), 2000);
+    });
+  }
+
+  if (document.documentElement) watchDocumentScripts();
+  else document.addEventListener('readystatechange', watchDocumentScripts, { once: true });
+
+  // --- the two network transports -------------------------------------------
   const nativeFetch = window.fetch;
   if (typeof nativeFetch === 'function') {
     window.fetch = function (...args) {
       const promise = nativeFetch.apply(this, args);
+      const url = (typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url)) || '';
+      stats.fetchSeen++;
       promise
         .then((response) => {
           // Clone, or we'd consume the body X is about to read.
-          response.clone().text().then(harvest).catch(() => {});
+          response.clone().text().then((t) => harvest(t, 'fetch', url)).catch(() => {});
         })
         .catch(() => {});
       return promise;
@@ -176,9 +342,10 @@
 
   const nativeSend = XMLHttpRequest.prototype.send;
   XMLHttpRequest.prototype.send = function (...args) {
+    stats.xhrSeen++;
     this.addEventListener('load', () => {
       try {
-        harvest(this.responseText || '');
+        harvest(this.responseText || '', 'xhr', this.responseURL);
       } catch (e) {
         /* non-text responseType — never a timeline payload */
       }
@@ -196,6 +363,8 @@
         photos: harvested.filter((r) => r.type === 'photo').length,
         videos: harvested.filter((r) => r.type !== 'photo').length,
         withPermalink: harvested.filter((r) => r.permalink).length,
+        stats,
+        log,
       };
     },
     configurable: true,
