@@ -1,7 +1,7 @@
 # Chrome Web Store listing — Monocle for X
 
 ## Name
-Monocle for X | Fullscreen Media Viewer
+Monocle for X | Full Screen Media Viewer
 
 ## Short description (132 char max)
 Open a photo on X and there is no next. Monocle gives the arrow keys back — every result fullscreen, video playing inline.
