@@ -7,6 +7,11 @@
  * URL nor the image, and its controls offer Close but no next/prev. To see the
  * next result you must close and reopen. This restores the keyboard.
  *
+ * Two shapes of click get us here. A media grid tile is an anchor carrying
+ * /status/<id>/photo/<n>, which resolves by permalink. The profile Media tab
+ * defaults to a VIDEOS view that has no grid and no tile anchors at all --
+ * it is a feed of inline players -- so those resolve by poster image instead.
+ *
  * ── HARDENING ──────────────────────────────────────────────────────────────
  * FAIL SILENT, NEVER FAIL LOUD. Every path here is written so that when we
  * can't do the job, X does it instead. If no record matches the clicked tile,
@@ -17,6 +22,14 @@
   'use strict';
 
   let domFallbackTried = false;
+
+  function pausePageVideos() {
+    for (const v of document.querySelectorAll('video')) {
+      if (!v.paused) {
+        try { v.pause(); } catch (err) { /* not ours to insist on */ }
+      }
+    }
+  }
 
   function ensureRecords() {
     const api = window.MonocleX;
@@ -43,13 +56,26 @@
       if (!tile) return;
 
       ensureRecords();
-      const index = api.indexForHref(tile.href);
+      // A grid tile resolves by permalink; a player in the Videos feed has no
+      // permalink near it and resolves by its poster instead.
+      const index = tile.href ? api.indexForHref(tile.href) : api.indexForPoster(tile.poster);
       if (index === -1) return; // unknown tile — hand it back to X untouched
 
       e.preventDefault();
       e.stopImmediatePropagation();
 
-      const img = tile.element.querySelector('img');
+      // The clicked player is the one that matters: it is the only feed video
+      // that can be unmuted (measured: muted=false, volume=0.74 on the one the
+      // user activated, while every autoplaying preview around it is muted),
+      // so without this it keeps playing audio under the viewer. The rest are
+      // swept too, cheaply, though X's autoplay restarts whichever preview is
+      // in view a moment later -- harmless, since those are silent.
+      // Our own <video> lives in the overlay's shadow root, which
+      // document.querySelectorAll cannot reach, so this can never pause the
+      // thing we just opened.
+      pausePageVideos();
+
+      const img = tile.element.querySelector && tile.element.querySelector('img');
       const rect = (img || tile.element).getBoundingClientRect();
       window.MonocleXOverlay.open(api.results(), index, rect);
     },

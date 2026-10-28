@@ -84,7 +84,7 @@
             <span class="mx-dim"></span><span class="mx-dot">·</span><a class="mx-domain" target="_blank" rel="noopener noreferrer"></a>
           </div>
           <div class="mx-grid"></div>
-          <div class="mx-shortlist-pill" title="Click to view only starred images (S)"><span class="mx-count"></span></div>
+          <div class="mx-shortlist-pill" title="Click to view only starred items (Shift+S)"><span class="mx-count"></span><button class="mx-shortlist-clear" title="Clear all stars (Shift+C)" aria-label="Clear all stars">×</button></div>
           <div class="mx-icon-cluster">
             <button class="mx-icon-btn mx-close" title="Close (Esc)">${svg('close')}</button>
             <button class="mx-icon-btn mx-filmstrip-toggle is-active" title="Toggle filmstrip / fullscreen (F)">${svg('filmstripToggle')}</button>
@@ -142,7 +142,15 @@
       this.els.gridToggleBtn.addEventListener('click', () => this.toggleGrid());
       this.els.copyBtn.addEventListener('click', () => this.copyCurrent());
       this.els.downloadBtn.addEventListener('click', () => this.downloadCurrent());
-      this.els.shortlistPillEl.addEventListener('click', () => this.toggleShortlistView());
+      this.els.shortlistPillEl.addEventListener('click', (e) => {
+        // The × clears; the rest of the pill still toggles the filtered view.
+        if (e.target.closest('.mx-shortlist-clear')) {
+          e.stopPropagation();
+          this.clearShortlist();
+          return;
+        }
+        this.toggleShortlistView();
+      });
 
       this.els.imageFrame.addEventListener('wheel', (e) => this._onWheel(e), { passive: false });
       this.els.imageFrame.addEventListener('mousedown', (e) => this._onPanStart(e));
@@ -636,6 +644,23 @@
       this._renderFilmstrip();
     }
 
+    // Starring survives closing and reopening the viewer, which is the point
+    // of it — but that also means a long session accumulates stars with no way
+    // to start over short of reloading the page. Hence an explicit clear, on
+    // the pill where the count already lives and on Shift+C.
+    clearShortlist() {
+      if (!this.pinned.size) return;
+      const cleared = this.pinned.size;
+      this.pinned.clear();
+      // Leaving the filtered view first, or it would be left showing nothing.
+      if (this.mode === 'shortlist') this.toggleShortlistView();
+      this._setStarIcon(false);
+      this._updateShortlistPill();
+      this._renderFilmstrip();
+      if (this.root.classList.contains('is-grid')) this._renderGrid();
+      this._flash(`Cleared ${cleared} star${cleared === 1 ? '' : 's'}`);
+    }
+
     _updateShortlistPill() {
       this.els.shortlistPill.textContent = `Shortlist · ${this.pinned.size}`;
       this.els.shortlistPillEl.classList.toggle('is-visible', this.pinned.size > 0);
@@ -685,7 +710,7 @@
         // and silently dropped if an id no longer appears in this scrape.
         source = [...this.pinned]
           .slice(-4)
-          .map((id) => this.results.find((r) => r.id === id))
+          .map((key) => this.results.find((r) => r.key === key))
           .filter(Boolean);
       } else {
         source = this.results.slice(this.activeIndex, this.activeIndex + 4);
@@ -962,11 +987,14 @@
         case 'm': this._toggleMute(); break;
         case 'f': this.toggleFullscreen(); break;
         case 'g': this.toggleGrid(); break;
-        case 'c': this.copyCurrent(); break;
         case 'd': this.downloadCurrent(); break;
         case 's':
           if (e.shiftKey) this.toggleShortlistView();
           else this.togglePin();
+          break;
+        case 'c':
+          if (e.shiftKey) this.clearShortlist();
+          else this.copyCurrent();
           break;
         default: return;
       }

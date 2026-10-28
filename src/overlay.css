@@ -431,6 +431,27 @@
    it shows as soon as anything is starred, not only once already filtered,
    and is clickable rather than a plain status readout. */
 
+.mx-shortlist-clear {
+  all: unset;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-right: -4px;
+  border-radius: 50%;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-secondary);
+  cursor: pointer;
+  opacity: 0.65;
+  transition: opacity 140ms ease, background 140ms ease;
+}
+
+.mx-shortlist-clear:hover {
+  opacity: 1;
+  background: var(--glass-highlight-16);
+}
+
 .mx-shortlist-pill {
   position: absolute;
   top: var(--space-8);

@@ -33,9 +33,28 @@
 
   // status id -> [record, record, ...] (a tweet can carry up to 4 photos)
   const byStatus = new Map();
+  // poster path -> record. The profile Media tab defaults to a VIDEOS view
+  // that is a feed of inline players, not a grid: no tile anchors, no
+  // permalink anywhere near the video. But each <video> carries a real
+  // pbs.twimg.com poster, and that is the same image our records already
+  // point at, so the poster path joins the two with no markup involved.
+  // Measured on /NASA/media: 5 of 5 players resolved, all to records with a
+  // playable MP4.
+  const byPoster = new Map();
   // insertion-ordered list of every record we know about
   const ordered = [];
   const keys = new Set();
+
+  // Query string and extension both vary between the DOM and the payload
+  // (name=orig vs .jpg), so compare paths only.
+  const posterPathOf = (url) => {
+    if (!url) return null;
+    try {
+      return new URL(url, location.origin).pathname.replace(/\.(jpg|jpeg|png|webp)$/i, '');
+    } catch (e) {
+      return null;
+    }
+  };
 
   const statusIdOf = (url) => {
     const m = /\/status\/(\d+)/.exec(url || '');
@@ -51,6 +70,8 @@
     if (!record || keys.has(record.key)) return false;
     keys.add(record.key);
     ordered.push(record);
+    const posterPath = posterPathOf(record.poster);
+    if (posterPath && !byPoster.has(posterPath)) byPoster.set(posterPath, record);
     const id = statusIdOf(record.permalink);
     if (id) {
       record.statusId = id;
@@ -127,15 +148,32 @@
     return ordered.indexOf(target);
   }
 
+  function indexForPoster(posterUrl) {
+    const record = byPoster.get(posterPathOf(posterUrl));
+    return record ? ordered.indexOf(record) : -1;
+  }
+
   /** The element whose click we should intercept, if any. */
   function tileFromEvent(event) {
     const path = typeof event.composedPath === 'function' ? event.composedPath() : [event.target];
     for (const node of path) {
       if (!(node instanceof Element)) continue;
+      // Controls belong to X. Mute, play, the overflow menu — all of these
+      // sit inside the player, and taking their clicks would break the page
+      // rather than enhance it.
+      if (node.tagName === 'BUTTON' || node.getAttribute('role') === 'button') return null;
       if (node.tagName === 'A') {
         const href = node.getAttribute('href') || '';
         if (/\/status\/\d+\/(photo|video)\/\d+/.test(href)) return { element: node, href };
         return null; // some other link — leave it alone
+      }
+      // Grid tiles are anchors; the Videos feed gives us a player instead.
+      if (node.tagName === 'VIDEO') {
+        return { element: node, poster: node.poster, video: node };
+      }
+      if (node.getAttribute('data-testid') === 'videoComponent') {
+        const v = node.querySelector('video');
+        if (v) return { element: v, poster: v.poster, video: v };
       }
     }
     return null;
@@ -155,5 +193,5 @@
     };
   }
 
-  global.MonocleX = { results, indexForHref, tileFromEvent, harvestFromDom, health };
+  global.MonocleX = { results, indexForHref, indexForPoster, tileFromEvent, harvestFromDom, health };
 })(window);
