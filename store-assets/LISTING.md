@@ -60,6 +60,7 @@ KEYBOARD
 Space    play / pause video — stars the item when it's a photo
 M        mute / unmute
 S        star          Shift+S  show only starred
+Shift+C  clear every star
 G        compare starred items
 C        copy          D        download
 F        hide the filmstrip
@@ -68,7 +69,7 @@ Esc      step back, then close
 WORKS ON
 
 • The Media tab of any search — search a term, then switch to Media
-• Any profile's Media tab with Photos selected
+• Any profile's Media tab, in both its Photos and Videos views
 
 IF YOU USE GOOGLE IMAGES
 
@@ -181,20 +182,23 @@ review. If review pushes back, the fallback is "Monocle for X (Unofficial)".
 
 ---
 
-## Surface notes (verified 2026-10-27 on live X)
+## Surface notes (verified on live X)
 
-**Works.** Search Media grids, and a profile's Media tab with Photos selected
-(`/<user>/media?filter=photo`). Verified on @NASA: the viewer opened with 59
-items in the filmstrip, 16 of them videos, and a 3,840x2,160 clip played
-inline at readyState 4.
+Both of the profile Media tab's views work, as does search.
 
-**Does not engage.** A profile's Media tab now defaults to **Videos**, and that
-view is not a grid at all -- it is a timeline of full post cards with no
-`/status/<id>/photo/<n>` anchors anywhere. Confirmed on two accounts. Clicks
-there fall through to X untouched, which is the correct behaviour; supporting
-it would mean treating a timeline as a gallery, which is a different product.
+- **Search Media grid, and profile → Photos.** Tiles are anchors carrying
+  `/status/<id>/photo/<n>`, resolved by permalink. Verified on @NASA: 59
+  items in the filmstrip, 16 of them videos, a 3,840x2,160 clip playing
+  inline at readyState 4.
+- **Profile → Videos**, which is what the Media tab DEFAULTS to. Not a grid
+  at all but a feed of inline players, with no tile anchors and no permalink
+  anywhere near the video. Resolved instead by the player's poster, which is
+  the same pbs.twimg.com file our records already point at. Verified on
+  /NASA/media: 5 of 5 players matched, every one to a record with a playable
+  MP4, and the viewer opens with 17 items.
 
-An earlier draft of this file claimed profile media was unsupported outright.
-That was wrong. It came from reaching /media by URL, landing on the Videos
-default, and generalising from it without opening the dropdown. Photos grids
-work, and always did.
+Recorded so it does not get re-litigated: an early draft of this file claimed
+profile media was unsupported outright, which was wrong -- it came from
+reaching /media by URL, landing on the Videos default, and generalising. A
+later draft claimed only Photos worked, which was true when written. Videos
+support landed in v1.1.0.
