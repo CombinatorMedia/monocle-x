@@ -647,73 +647,15 @@
   pointer-events: none;
 }
 
-/* Sound sits on the picture, not in the icon column: the column can be far
-   from where you are looking, and with the filmstrip hidden there is nothing
-   to tell you a clip even has audio. Bottom-left, because the badge already
-   owns bottom-right. Nearly transparent until the pointer is over the media,
-   so it never competes with the photo. */
-.mx-video-mute {
-  all: unset;
-  position: absolute;
-  z-index: 3;
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  color: #fff;
-  cursor: pointer;
-  background: rgba(16, 17, 20, 0.55);
-  /* Without the hairline the chip dissolves into dark footage and only the
-     glyph carries it; against a bright frame the reverse. The border holds
-     its shape either way. */
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
-  opacity: 0.22;
-  transition: opacity 160ms ease, background 160ms ease, transform 160ms ease;
+/* Sound is persistent in the icon row. On a photo it goes inert rather than
+   disappearing: a control that comes and goes as you arrow between photos and
+   videos is jumpy, and a row whose buttons shift position is worse. */
+.mx-icon-btn.mx-mute.is-inert {
+  opacity: 0.28;
+  pointer-events: none;
 }
 
-.mx-video-mute[hidden] {
-  display: none;
-}
-
-.mx-video-mute svg {
-  width: 18px;
-  height: 18px;
-  display: block;
-}
-
-/* Moving the pointer anywhere over the media brings it up. */
-.mx-image-frame:hover .mx-video-mute {
-  opacity: 0.85;
-}
-
-.mx-video-mute:hover,
-.mx-video-mute:focus-visible {
-  opacity: 1;
-  background: rgba(16, 17, 20, 0.86);
-  border-color: rgba(255, 255, 255, 0.4);
-  transform: scale(1.06);
-}
-
-/* Muted is the state worth shouting about — it is the one a user needs to
-   notice and undo, so it stays legible even unhovered. */
-.mx-video-mute.is-muted {
-  opacity: 0.42;
-}
-
-.mx-image-frame:hover .mx-video-mute.is-muted {
-  opacity: 0.95;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .mx-video-mute {
-    transition: none;
-  }
-  .mx-video-mute:hover,
-  .mx-video-mute:focus-visible {
-    transform: none;
-  }
+/* Sound ON is the state worth marking, since muted is the resting default. */
+.mx-icon-btn.mx-mute:not(.is-muted):not(.is-inert) {
+  color: var(--accent-starred-solid, #fff);
 }

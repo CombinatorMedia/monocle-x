@@ -81,7 +81,6 @@
             <img alt="" class="mx-photo is-active" />
             <img alt="" class="mx-photo" />
             <video class="mx-video" playsinline preload="auto"></video>
-            <button class="mx-video-mute" title="Sound (M)" hidden>${svg('soundOff')}</button>
           </div>
           <div class="mx-badge">
             <span class="mx-dim"></span><span class="mx-dot">·</span><a class="mx-domain" target="_blank" rel="noopener noreferrer"></a>
@@ -91,6 +90,7 @@
           <div class="mx-icon-cluster">
             <button class="mx-icon-btn mx-close" title="Close (Esc)">${svg('close')}</button>
             <button class="mx-icon-btn mx-filmstrip-toggle is-active" title="Toggle filmstrip / fullscreen (F)">${svg('filmstripToggle')}</button>
+            <button class="mx-icon-btn mx-mute" title="Sound (M)">${svg('soundOff')}</button>
             <button class="mx-icon-btn mx-star" title="Shortlist (Space)">${svg('star')}</button>
             <button class="mx-icon-btn mx-grid-toggle" title="Compare mode (G)">${svg('grid')}</button>
             <button class="mx-icon-btn mx-copy" title="Copy image (C)">${svg('copy')}</button>
@@ -121,7 +121,7 @@
         badgeDim: q('.mx-badge .mx-dim'),
         badgeDomain: q('.mx-badge .mx-domain'),
         filmstrip: q('.mx-filmstrip'),
-        muteBtn: q('.mx-video-mute'),
+        muteBtn: q('.mx-mute'),
         starBtn: q('.mx-star'),
         gridToggleBtn: q('.mx-grid-toggle'),
         filmstripToggleBtn: q('.mx-filmstrip-toggle'),
@@ -142,7 +142,6 @@
     _bindEvents() {
       this.els.closeBtn.addEventListener('click', () => this.close());
       this.els.muteBtn.addEventListener('click', () => this._toggleMute());
-      window.addEventListener('resize', () => this._positionMuteButton());
       this.els.starBtn.addEventListener('click', () => this.togglePin());
       this.els.filmstripToggleBtn.addEventListener('click', () => this.toggleFullscreen());
       this.els.gridToggleBtn.addEventListener('click', () => this.toggleGrid());
@@ -303,6 +302,11 @@
         clearTimeout(timer);
       }
 
+      // _hideVideo() early-returns when there was never a video to hide, so
+      // on a photo the control would otherwise keep whatever state the last
+      // clip left it in — live-looking, on an item with no audio.
+      this._syncMuteButton();
+
       // X only fetches the next timeline page when it thinks you're near the
       // bottom of the grid, but the viewer can outrun the rendered tiles. Ask
       // the page to load more before we hit the end of what we know.
@@ -338,9 +342,6 @@
       };
       if (v.readyState >= 1) play();
       else v.addEventListener('loadedmetadata', play, { once: true });
-      // videoWidth is 0 until metadata lands, and the button cannot be placed
-      // against a picture whose shape isn't known yet.
-      v.addEventListener('loadedmetadata', () => this._syncMuteButton(), { once: true });
       this._syncMuteButton();
     }
 
@@ -376,45 +377,29 @@
       this._flash(this._videoMuted ? 'Muted' : 'Sound on');
     }
 
-    // Sound was reachable only from the keyboard, with nothing on screen to
-    // say a video even had audio or which way it was set. The button appears
-    // only while a video is up — on a photo it would be a dead control.
+    // Sound lives in the icon row, not on the picture. On the picture it
+    // competed with the photo, and because object-fit: contain letterboxes a
+    // vertical clip hard, it had to be positioned against the painted rect —
+    // which could not be measured until the new clip's metadata arrived, so
+    // it visibly lagged behind each change of video. Here there is no
+    // geometry to compute and nothing to lag.
+    //
+    // It is persistent rather than appearing and vanishing as you arrow
+    // between photos and videos: a control that comes and goes is both jumpy
+    // and easy to miss. On a photo it goes inert, which also says "this
+    // viewer has sound" before you ever land on a clip.
     _syncMuteButton() {
       const btn = this.els.muteBtn;
       const isVideo = this._videoIsActive();
-      btn.hidden = !isVideo;
-      if (!isVideo) return;
       const muted = this.els.video.muted;
       btn.innerHTML = svg(muted ? 'soundOff' : 'soundOn');
       btn.classList.toggle('is-muted', muted);
-      btn.title = muted ? 'Unmute (M)' : 'Mute (M)';
+      btn.classList.toggle('is-inert', !isVideo);
+      btn.setAttribute('aria-disabled', String(!isVideo));
+      btn.title = isVideo
+        ? (muted ? 'Unmute (M)' : 'Mute (M)')
+        : 'Sound (M) — videos only';
       btn.setAttribute('aria-label', btn.title);
-      this._positionMuteButton();
-    }
-
-    // The <video> element fills the frame but object-fit: contain means the
-    // picture inside it is usually smaller — a vertical clip leaves wide
-    // letterbox bands. Anchoring the control to the element's corner would
-    // float it out on the scrim, so it is placed against the PAINTED rect,
-    // the same math _pointOverPicture uses for hit testing.
-    _positionMuteButton() {
-      const v = this.els.video;
-      const btn = this.els.muteBtn;
-      if (!v.videoWidth || !v.videoHeight) return;
-      const frame = this.els.imageFrame.getBoundingClientRect();
-      const box = v.getBoundingClientRect();
-      if (!box.width || !box.height) return;
-      const ratio = v.videoWidth / v.videoHeight;
-      let w = box.width;
-      let h = w / ratio;
-      if (h > box.height) {
-        h = box.height;
-        w = h * ratio;
-      }
-      const left = (box.left - frame.left) + (box.width - w) / 2;
-      const bottom = (frame.bottom - box.bottom) + (box.height - h) / 2;
-      btn.style.left = `${Math.round(left) + 12}px`;
-      btn.style.bottom = `${Math.round(bottom) + 12}px`;
     }
 
     /** Called as X loads more timeline pages while the viewer is open. */
