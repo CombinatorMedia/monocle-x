@@ -10,6 +10,8 @@
     grid: '<rect x="3" y="3" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="13" y="3" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="3" y="13" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="13" y="13" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="2"/>',
     copy: '<rect x="9" y="9" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
     download: '<path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    soundOn: '<path d="M11 5 6 9H3v6h3l5 4V5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>',
+    soundOff: '<path d="M11 5 6 9H3v6h3l5 4V5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/><path d="m16 9 5 6m0-6-5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
     filmstripToggle: '<rect x="3" y="4" width="18" height="11" rx="2" stroke="currentColor" stroke-width="2"/><rect x="3" y="18" width="4" height="3" rx="1" fill="currentColor"/><rect x="10" y="18" width="4" height="3" rx="1" fill="currentColor"/><rect x="17" y="18" width="4" height="3" rx="1" fill="currentColor"/>',
   };
 
@@ -79,6 +81,7 @@
             <img alt="" class="mx-photo is-active" />
             <img alt="" class="mx-photo" />
             <video class="mx-video" playsinline preload="auto"></video>
+            <button class="mx-video-mute" title="Sound (M)" hidden>${svg('soundOff')}</button>
           </div>
           <div class="mx-badge">
             <span class="mx-dim"></span><span class="mx-dot">·</span><a class="mx-domain" target="_blank" rel="noopener noreferrer"></a>
@@ -118,6 +121,7 @@
         badgeDim: q('.mx-badge .mx-dim'),
         badgeDomain: q('.mx-badge .mx-domain'),
         filmstrip: q('.mx-filmstrip'),
+        muteBtn: q('.mx-video-mute'),
         starBtn: q('.mx-star'),
         gridToggleBtn: q('.mx-grid-toggle'),
         filmstripToggleBtn: q('.mx-filmstrip-toggle'),
@@ -137,6 +141,8 @@
 
     _bindEvents() {
       this.els.closeBtn.addEventListener('click', () => this.close());
+      this.els.muteBtn.addEventListener('click', () => this._toggleMute());
+      window.addEventListener('resize', () => this._positionMuteButton());
       this.els.starBtn.addEventListener('click', () => this.togglePin());
       this.els.filmstripToggleBtn.addEventListener('click', () => this.toggleFullscreen());
       this.els.gridToggleBtn.addEventListener('click', () => this.toggleGrid());
@@ -332,6 +338,10 @@
       };
       if (v.readyState >= 1) play();
       else v.addEventListener('loadedmetadata', play, { once: true });
+      // videoWidth is 0 until metadata lands, and the button cannot be placed
+      // against a picture whose shape isn't known yet.
+      v.addEventListener('loadedmetadata', () => this._syncMuteButton(), { once: true });
+      this._syncMuteButton();
     }
 
     _hideVideo() {
@@ -343,6 +353,7 @@
       // and so we stop buffering media the viewer has moved past.
       v.removeAttribute('src');
       v.load();
+      this._syncMuteButton();
     }
 
     _videoIsActive() {
@@ -361,7 +372,49 @@
       if (!this._videoIsActive()) return;
       this._videoMuted = !this.els.video.muted;
       this.els.video.muted = this._videoMuted;
+      this._syncMuteButton();
       this._flash(this._videoMuted ? 'Muted' : 'Sound on');
+    }
+
+    // Sound was reachable only from the keyboard, with nothing on screen to
+    // say a video even had audio or which way it was set. The button appears
+    // only while a video is up — on a photo it would be a dead control.
+    _syncMuteButton() {
+      const btn = this.els.muteBtn;
+      const isVideo = this._videoIsActive();
+      btn.hidden = !isVideo;
+      if (!isVideo) return;
+      const muted = this.els.video.muted;
+      btn.innerHTML = svg(muted ? 'soundOff' : 'soundOn');
+      btn.classList.toggle('is-muted', muted);
+      btn.title = muted ? 'Unmute (M)' : 'Mute (M)';
+      btn.setAttribute('aria-label', btn.title);
+      this._positionMuteButton();
+    }
+
+    // The <video> element fills the frame but object-fit: contain means the
+    // picture inside it is usually smaller — a vertical clip leaves wide
+    // letterbox bands. Anchoring the control to the element's corner would
+    // float it out on the scrim, so it is placed against the PAINTED rect,
+    // the same math _pointOverPicture uses for hit testing.
+    _positionMuteButton() {
+      const v = this.els.video;
+      const btn = this.els.muteBtn;
+      if (!v.videoWidth || !v.videoHeight) return;
+      const frame = this.els.imageFrame.getBoundingClientRect();
+      const box = v.getBoundingClientRect();
+      if (!box.width || !box.height) return;
+      const ratio = v.videoWidth / v.videoHeight;
+      let w = box.width;
+      let h = w / ratio;
+      if (h > box.height) {
+        h = box.height;
+        w = h * ratio;
+      }
+      const left = (box.left - frame.left) + (box.width - w) / 2;
+      const bottom = (frame.bottom - box.bottom) + (box.height - h) / 2;
+      btn.style.left = `${Math.round(left) + 12}px`;
+      btn.style.bottom = `${Math.round(bottom) + 12}px`;
     }
 
     /** Called as X loads more timeline pages while the viewer is open. */
