@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Monocle for X | Full Screen Media Viewer",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Browse X media fullscreen, one large item at a time. Arrow keys move through every result without closing the viewer.",
   "icons": {
     "16": "icons/icon16.png",
