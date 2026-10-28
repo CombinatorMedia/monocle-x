@@ -109,22 +109,21 @@ viewer for each result.
 
 ## Permission justifications
 
-**host permission — https://x.com/, https://twitter.com/**
-The viewer runs on X's media timelines. The extension needs to read the media
-records the page already carries in order to build the filmstrip, and to inject
-its viewer UI there. twitter.com is included because X still serves the same
-pages on the legacy domain.
+**host permission — https://x.com/**
+The viewer runs on X's media timelines. The extension reads the media records
+the page already carries in order to build its filmstrip, and injects its
+viewer UI there. This is the only site the extension runs on.
 
-**host permission — https://pbs.twimg.com/, https://video.twimg.com/**
-X's own media servers, and the only two hosts the media itself comes from.
-Access is needed to fetch an image's bytes for the copy action and the video
-file for inline playback and download. The surface is small and known in
-advance, so it is declared up front rather than requested later.
+**host permission — https://pbs.twimg.com/**
+X's image host. Needed to read an image's bytes for the copy-to-clipboard
+action, which a content script cannot do for a third-party origin. Nothing
+else is fetched from it.
 
 **downloads**
 Powers the download action in the viewer, saving the currently displayed image
-or video. Used only in response to the user pressing D or clicking the download
-button.
+or video. Used only in response to the user pressing D or clicking the
+download button. No host permission is needed for the video host, because
+downloads are handed to chrome.downloads rather than fetched by the extension.
 
 **Remote code**: No. All code is contained in the extension package. Nothing is
 loaded or executed from a remote source. Video plays in a standard HTML video
